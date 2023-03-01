@@ -21,4 +21,5 @@ with col2:
 if(st.button('Generate Summary')):
     st.text_area('BART Summary: ', value = summarizer(cleanhtml(description),'BART',min_length, max_length))
     st.text_area('T5-base Summary: ', value = summarizer(cleanhtml(description),'T5-base',min_length, max_length))
+    st.text_area('Flan-T5-large Summary: ', value = summarizer(cleanhtml(description),'flan-T5-large',min_length, max_length))
 

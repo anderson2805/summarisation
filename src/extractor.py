@@ -1,36 +1,50 @@
 import torch
-import json 
-from transformers import T5Tokenizer, T5ForConditionalGeneration, T5Config, BartTokenizer, BartForConditionalGeneration, BartConfig
-import csv 
+import json
+from transformers import (
+T5Tokenizer, T5ForConditionalGeneration, T5Config,
+BartTokenizer, BartForConditionalGeneration, BartConfig
+)
 
-modelT5 = T5ForConditionalGeneration.from_pretrained('t5-base')
-tokenizerT5 = T5Tokenizer.from_pretrained('t5-base')
-modelBart = BartForConditionalGeneration.from_pretrained('facebook/bart-large-cnn')
-tokenizerBart = BartTokenizer.from_pretrained('facebook/bart-large-cnn')
-device = torch.device('cpu')
+models = {
+'BART': (BartForConditionalGeneration, BartTokenizer, 'facebook/bart-large-cnn', 'cpu'),
+'T5-base': (T5ForConditionalGeneration, T5Tokenizer, 't5-base', 'cpu'),
+'flan-T5-large': (T5ForConditionalGeneration, T5Tokenizer, 'google/flan-t5-large', 'cuda')
+}
 
-def summarizer(text : str, model_name:str = 'BART', min_length:int = 100, max_length:int = 250):
+NUM_BEAMS = 4
+NO_REPEAT_NGRAM_SIZE = 2
+
+def summarizer(text: str, model_name: str = 'flan-T5-large', min_length: int = 100, max_length: int = 250, role = 'management'):
     preprocess_text = text.strip().replace("\n"," ")
-    if model_name == 'BART':
-        model = modelBart
-        tokenizer = tokenizerBart
-        prepared_Text = preprocess_text
-        tokenized_text = tokenizer.encode(prepared_Text, return_tensors="pt",truncation=True).to(device)
-    elif model_name == 'T5-base':
-        model = modelT5
-        tokenizer = tokenizerT5
-        prepared_Text = "summarize: "+preprocess_text
-        tokenized_text = tokenizer.encode(prepared_Text, return_tensors="pt", truncation=True, max_length = 2500).to(device)
+    ModelClass, TokenizerClass, pretrained_model_name, device = models[model_name]
+    with torch.no_grad():
+        model = ModelClass.from_pretrained(pretrained_model_name).to(device)
+        tokenizer = TokenizerClass.from_pretrained(pretrained_model_name)
 
-    
-    summary_ids = model.generate(tokenized_text,
-                                num_beams=4,
-                                no_repeat_ngram_size=2,
-                                min_length=min_length,
-                                max_length=max_length ,  early_stopping=True )
+        if model_name == 'T5-base' or model_name == 'flan-T5-large':
+            prepared_text = f"summarize for {role}: {preprocess_text}"
+        else:
+            prepared_text = preprocess_text
 
-    output = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
+        tokenized_text = tokenizer.encode(
+            prepared_text, 
+            return_tensors="pt", 
+            truncation=True
+        ).to(device)
+
+        summary_ids = model.generate(
+            tokenized_text,
+            num_beams=NUM_BEAMS,
+            no_repeat_ngram_size=NO_REPEAT_NGRAM_SIZE,
+            min_length=min_length,
+            max_length=max_length,
+            early_stopping=True
+        )
+
+        output = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
+
     return output
+
 if __name__ == '__main__':
     doc = """The writer opined that
 
