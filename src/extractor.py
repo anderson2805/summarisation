@@ -1,18 +1,30 @@
 import torch
 import json
+from pydantic import BaseModel
 from transformers import (
-T5Tokenizer, T5ForConditionalGeneration, T5Config,
-BartTokenizer, BartForConditionalGeneration, BartConfig
+    T5Tokenizer, T5ForConditionalGeneration, T5Config,
+    BartTokenizer, BartForConditionalGeneration, BartConfig
 )
+from fastapi import FastAPI
+
+app = FastAPI()
 
 models = {
-'BART': (BartForConditionalGeneration, BartTokenizer, 'facebook/bart-large-cnn', 'cpu'),
-'T5-base': (T5ForConditionalGeneration, T5Tokenizer, 't5-base', 'cpu'),
-'flan-T5-large': (T5ForConditionalGeneration, T5Tokenizer, 'google/flan-t5-large', 'cuda')
+    'BART': (BartForConditionalGeneration, BartTokenizer, 'facebook/bart-large-cnn', 'cpu'),
+    'T5-base': (T5ForConditionalGeneration, T5Tokenizer, 't5-base', 'cpu'),
+    'flan-T5-large': (T5ForConditionalGeneration, T5Tokenizer, 'google/flan-t5-large', 'cuda')
 }
 
 NUM_BEAMS = 4
 NO_REPEAT_NGRAM_SIZE = 2
+
+class InputData(BaseModel):
+    text: str
+    model_name: str = 'flan-T5-large'
+    min_length: int = 100
+    max_length: int = 250
+    role: str = 'management'
+
 
 def summarizer(text: str, model_name: str = 'flan-T5-large', min_length: int = 100, max_length: int = 250, role = 'management'):
     preprocess_text = text.strip().replace("\n"," ")
@@ -45,6 +57,16 @@ def summarizer(text: str, model_name: str = 'flan-T5-large', min_length: int = 1
 
     return output
 
+@app.post('/summarize')
+def summarize(input_data: InputData):
+    text = input_data.text
+    model_name = input_data.model_name
+    min_length = input_data.min_length
+    max_length = input_data.max_length
+    role = input_data.role
+    summary = summarizer(text, model_name, min_length, max_length, role)
+    return {'summary': summary}
+
 if __name__ == '__main__':
     doc = """The writer opined that
 
@@ -63,3 +85,5 @@ the Nature Society (Singapore) urged the authorities to do an environmental or a
 (The writer is Vice-President of the Nature Society (Singapore).)"""
 
     print(summarizer(doc))
+    import uvicorn
+    uvicorn.run(app, host='0.0.0.0', port=8000)
